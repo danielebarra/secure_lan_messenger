@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:secure_lan_messenger/app_services.dart';
 import 'package:secure_lan_messenger/models/chat_message.dart';
@@ -268,6 +270,20 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                 ),
                 const SizedBox(width: 12),
+                IconButton(
+                  onPressed: () async {
+                    try {
+                      await AppServices.fileService.pickAndSendFile();
+                    } catch (e) {
+                      if (!context.mounted) return;
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Errore invio file: $e')),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.attach_file),
+                ),
                 ElevatedButton(
                   onPressed: sendMessage,
                   style: ElevatedButton.styleFrom(
@@ -301,6 +317,10 @@ class _MessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (message.type == ChatMessageType.file) {
+      return _FileBubble(message: message);
+    }
+
     final bool isMine = message.isMine;
 
     return Align(
@@ -324,7 +344,7 @@ class _MessageBubble extends StatelessWidget {
               : CrossAxisAlignment.start,
           children: [
             Text(
-              message.text,
+              message.text ?? '',
               style: TextStyle(
                 color: isMine ? Colors.white : const Color(0xFF111827),
                 fontSize: 15,
@@ -349,5 +369,90 @@ class _MessageBubble extends StatelessWidget {
     final minute = time.minute.toString().padLeft(2, "0");
 
     return '$hour:$minute';
+  }
+}
+
+class _FileBubble extends StatelessWidget {
+  final ChatMessage message;
+
+  const _FileBubble({required this.message});
+
+  Future<void> _saveFile(BuildContext context) async {
+    final bytes = message.fileBytes;
+    final fileName = message.fileName;
+
+    if (bytes == null || fileName == null) return;
+
+    final outputPath = await FilePicker.saveFile(
+      dialogTitle: 'Salva file',
+      fileName: fileName,
+    );
+
+    if (outputPath == null) return;
+
+    final file = File(outputPath);
+    await file.writeAsBytes(bytes);
+
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('File salvato: $outputPath')));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isMine = message.isMine;
+    final sizeKb = ((message.fileSize ?? 0) / 1024).toStringAsFixed(1);
+
+    return Align(
+      alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
+      child: InkWell(
+        onTap: () => _saveFile(context),
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 420),
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: isMine ? const Color(0xFF0B63CE) : const Color(0xFFF3F4F6),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.insert_drive_file,
+                color: isMine ? Colors.white : Colors.black87,
+              ),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      message.fileName ?? 'File',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: isMine ? Colors.white : Colors.black,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '$sizeKb KB · clicca per salvare',
+                      style: TextStyle(
+                        color: isMine ? Colors.white70 : Colors.grey,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

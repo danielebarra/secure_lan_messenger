@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:secure_lan_messenger/services/chat_service.dart';
 import 'package:secure_lan_messenger/services/crypto_service.dart';
 import 'package:secure_lan_messenger/services/discovery_service.dart';
+import 'package:secure_lan_messenger/services/file_service.dart';
 import 'package:secure_lan_messenger/services/network_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
@@ -12,6 +13,7 @@ class AppServices {
   static late final NetworkService networkService;
   static late final ChatService chatService;
   static late final CryptoService cryptoService;
+  static late final FileService fileService;
 
   static Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
@@ -47,5 +49,7 @@ class AppServices {
     await discoveryService.startResponder();
     await networkService.startServer();
     chatService.startListening();
+
+    fileService = FileService(chatService: chatService);
   }
 }

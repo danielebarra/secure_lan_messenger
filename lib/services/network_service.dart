@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:secure_lan_messenger/models/connection_status.dart';
 import 'package:secure_lan_messenger/models/peer_device.dart';
 import 'package:secure_lan_messenger/models/protocol_packet.dart';
+import 'package:secure_lan_messenger/models/received_file.dart';
 import 'package:secure_lan_messenger/services/crypto_service.dart';
 
 class NetworkService {
@@ -30,6 +31,11 @@ class NetworkService {
   });
 
   bool get isConnected => _activeSocket != null;
+
+  final StreamController<ReceivedFile> _incomingFilesController =
+      StreamController<ReceivedFile>.broadcast();
+
+  Stream<ReceivedFile> get incomingFiles => _incomingFilesController.stream;
 
   ConnectionStatus _connectionStatus = ConnectionStatus.disconnect;
 
@@ -147,6 +153,10 @@ class NetworkService {
 
                 case 'ENCRYPTED_CHAT_MESSAGE':
                   await _handleEncryptedChatMessage(packet);
+                  break;
+
+                case 'ENCRYPTED_FILE':
+                  await _handleEncryptedFile(packet);
                   break;
 
                 case 'DISCONNECT':
@@ -317,6 +327,71 @@ class NetworkService {
     }
   }
 
+  Future<void> _handleEncryptedFile(ProtocolPacket packet) async {
+    try {
+      final fileName = packet.payload['fileName'];
+      final originalSize = packet.payload['originalSize'];
+      final encryptedPayloadJson = packet.payload['encryptedPayload'];
+
+      if (fileName is! String || originalSize is! int) {
+        throw Exception('Pacchetto file non valido');
+      }
+
+      final encryptedPayload = EncryptedPayload.fromJson(
+        Map<String, dynamic>.from(encryptedPayloadJson),
+      );
+
+      final clearBytes = await cryptoService.decryptBytes(encryptedPayload);
+
+      _incomingFilesController.add(
+        ReceivedFile(
+          fileName: fileName,
+          size: clearBytes.length,
+          bytes: clearBytes,
+          receivedAt: DateTime.now(),
+        ),
+      );
+
+      print('File ricevuto in memoria: $fileName');
+    } catch (e) {
+      print('Errore ricezione file: $e');
+    }
+  }
+
+  Future<void> sendFile({
+    required String filePath,
+    required String fileName,
+  }) async {
+    final socket = _activeSocket;
+
+    if (socket == null) {
+      throw Exception('Nessuna connessione TCP attiva');
+    }
+
+    if (_connectionStatus != ConnectionStatus.secureReady) {
+      throw Exception('Sessione sicura non ancora pronta');
+    }
+
+    if (!cryptoService.hasSessionKey) {
+      throw Exception('Session key AES non pronta');
+    }
+
+    final file = File(filePath);
+    final bytes = await file.readAsBytes();
+
+    final encrypted = await cryptoService.encryptBytes(bytes);
+
+    final packet = ProtocolPacket.encryptedFile(
+      fileName: fileName,
+      originalSize: bytes.length,
+      encryptedPayload: encrypted.toJson(),
+    );
+
+    socket.write(packet.encode());
+
+    print('File inviato: $fileName');
+  }
+
   Future<bool> connectToPeer({
     required PeerDevice peer,
     required String sessionId,
@@ -430,5 +505,6 @@ class NetworkService {
     _incomingMessagesController.close();
     _connectedPeerController.close();
     _connectionStatusController.close();
+    _incomingFilesController.close();
   }
 }

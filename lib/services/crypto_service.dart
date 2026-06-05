@@ -178,4 +178,36 @@ class CryptoService {
   void clearSessionKey() {
     _sessionKey = null;
   }
+
+  Future<EncryptedPayload> encryptBytes(List<int> bytes) async {
+    final key = _sessionKey;
+
+    if (key == null) {
+      throw Exception('Session key non inizializzata');
+    }
+
+    final secretBox = await _aesGcm.encrypt(bytes, secretKey: key);
+
+    return EncryptedPayload(
+      nonce: base64Encode(secretBox.nonce),
+      ciphertext: base64Encode(secretBox.cipherText),
+      mac: base64Encode(secretBox.mac.bytes),
+    );
+  }
+
+  Future<List<int>> decryptBytes(EncryptedPayload payload) async {
+    final key = _sessionKey;
+
+    if (key == null) {
+      throw Exception('Session key non inizializzata');
+    }
+
+    final secretBox = SecretBox(
+      base64Decode(payload.ciphertext),
+      nonce: base64Decode(payload.nonce),
+      mac: Mac(base64Decode(payload.mac)),
+    );
+
+    return _aesGcm.decrypt(secretBox, secretKey: key);
+  }
 }

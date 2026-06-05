@@ -102,6 +102,21 @@ class ProtocolPacket {
     );
   }
 
+  factory ProtocolPacket.encryptedFile({
+    required String fileName,
+    required int originalSize,
+    required Map<String, dynamic> encryptedPayload,
+  }) {
+    return ProtocolPacket(
+      type: 'ENCRYPTED_FILE',
+      payload: {
+        'fileName': fileName,
+        'originalSize': originalSize,
+        'encryptedPayload': encryptedPayload,
+      },
+    );
+  }
+
   factory ProtocolPacket.disconnect() {
     return ProtocolPacket(type: 'DISCONNECT', payload: {});
   }
