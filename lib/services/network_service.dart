@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:secure_lan_messenger/models/connection_status.dart';
 import 'package:secure_lan_messenger/models/peer_device.dart';
 import 'package:secure_lan_messenger/models/protocol_packet.dart';
 import 'package:secure_lan_messenger/services/crypto_service.dart';
@@ -29,6 +30,25 @@ class NetworkService {
   });
 
   bool get isConnected => _activeSocket != null;
+
+  ConnectionStatus _connectionStatus = ConnectionStatus.disconnect;
+
+  final StreamController<ConnectionStatus> _connectionStatusController =
+      StreamController<ConnectionStatus>.broadcast();
+
+  Stream<ConnectionStatus> get connectionStatusStream =>
+      _connectionStatusController.stream;
+
+  ConnectionStatus get connectionStatus => _connectionStatus;
+
+  void _setConnectionStatus(ConnectionStatus status) {
+    if (_connectionStatus == status) return;
+
+    _connectionStatus = status;
+    _connectionStatusController.add(status);
+
+    print('Stato connessione: $status');
+  }
 
   final StreamController<PeerDevice?> _connectedPeerController =
       StreamController<PeerDevice?>.broadcast();
@@ -201,6 +221,8 @@ class NetworkService {
 
     _activeSocket = socket;
 
+    _setConnectionStatus(ConnectionStatus.tcpConnected);
+
     final response = ProtocolPacket.sessionOk(
       sessionId: sessionId,
       deviceId: deviceId,
@@ -232,6 +254,8 @@ class NetworkService {
   }) async {
     _activeSocket = socket;
 
+    _setConnectionStatus(ConnectionStatus.tcpConnected);
+
     if (peer != null) {
       _setConnectedPeer(peer);
     }
@@ -257,6 +281,8 @@ class NetworkService {
 
     socket.write(sessionKeyPacket.encode());
 
+    _setConnectionStatus(ConnectionStatus.secureReady);
+
     print('SESSION_KEY inviata');
   }
 
@@ -273,6 +299,8 @@ class NetworkService {
     );
 
     cryptoService.setSessionKeyFromBytes(sessionKeyBytes);
+
+    _setConnectionStatus(ConnectionStatus.secureReady);
 
     print('SESSION_KEY ricevuta');
   }
@@ -294,6 +322,8 @@ class NetworkService {
     required String sessionId,
   }) async {
     try {
+      _setConnectionStatus(ConnectionStatus.connecting);
+
       final socket = await Socket.connect(
         peer.ip,
         peer.port,
@@ -328,6 +358,7 @@ class NetworkService {
       );
     } catch (e) {
       print('Errore connessione TCP: $e');
+      _setConnectionStatus(ConnectionStatus.disconnect);
       return false;
     }
   }
@@ -357,6 +388,10 @@ class NetworkService {
       throw Exception("Nessuna connessione TCP attiva");
     }
 
+    if (_connectionStatus != ConnectionStatus.secureReady) {
+      throw Exception("Secure Session non ancora pronta");
+    }
+
     if (!cryptoService.hasSessionKey) {
       throw Exception("cryptoService non ha SessionKey AES");
     }
@@ -375,6 +410,7 @@ class NetworkService {
 
     _activeSocket = null;
     _setConnectedPeer(null);
+    _setConnectionStatus(ConnectionStatus.disconnect);
     cryptoService.clearSessionKey();
 
     if (destroySocket) {
@@ -393,5 +429,6 @@ class NetworkService {
 
     _incomingMessagesController.close();
     _connectedPeerController.close();
+    _connectionStatusController.close();
   }
 }
