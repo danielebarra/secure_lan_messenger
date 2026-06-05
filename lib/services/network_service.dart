@@ -107,7 +107,10 @@ class NetworkService {
                     connectionCompleter.complete(false);
                   }
 
-                  _clearConnection(destroySocket: true);
+                  _clearConnection(
+                    destroySocket: true,
+                    socketToDestroy: socket,
+                  );
                   break;
 
                 case 'SESSION_KEY':
@@ -127,7 +130,10 @@ class NetworkService {
                   break;
 
                 case 'DISCONNECT':
-                  _clearConnection(destroySocket: true);
+                  _clearConnection(
+                    destroySocket: true,
+                    socketToDestroy: socket,
+                  );
                   break;
 
                 case 'ERROR':
@@ -147,7 +153,7 @@ class NetworkService {
                 connectionCompleter.complete(false);
               }
 
-              _clearConnection(destroySocket: true);
+              _clearConnection(destroySocket: true, socketToDestroy: socket);
             }
           },
           onError: (e) {
@@ -158,7 +164,7 @@ class NetworkService {
               connectionCompleter.complete(false);
             }
 
-            _clearConnection(destroySocket: true);
+            _clearConnection(destroySocket: true, socketToDestroy: socket);
           },
           onDone: () {
             print('Socket chiusa');
@@ -187,7 +193,7 @@ class NetworkService {
       );
 
       socket.write(reject.encode());
-      socket.destroy();
+      _clearConnection(destroySocket: true, socketToDestroy: socket);
 
       print("SESSION_HELLO rifiutato");
       return;
@@ -316,7 +322,7 @@ class NetworkService {
       return await connectionCompleter.future.timeout(
         const Duration(seconds: 6),
         onTimeout: () {
-          _clearConnection(destroySocket: true);
+          _clearConnection(destroySocket: true, socketToDestroy: socket);
           return false;
         },
       );
@@ -341,7 +347,7 @@ class NetworkService {
       print('Errore invio DISCONNECT: $e');
     }
 
-    _clearConnection(destroySocket: true);
+    _clearConnection(destroySocket: true, socketToDestroy: socket);
   }
 
   Future<void> sendTextMessage(String text) async {
@@ -364,8 +370,8 @@ class NetworkService {
     socket.write(packet.encode());
   }
 
-  void _clearConnection({bool destroySocket = false}) {
-    final socket = _activeSocket;
+  void _clearConnection({bool destroySocket = false, Socket? socketToDestroy}) {
+    final socket = socketToDestroy ?? _activeSocket;
 
     _activeSocket = null;
     _setConnectedPeer(null);
