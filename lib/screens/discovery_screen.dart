@@ -32,6 +32,8 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
 
     isOnline = AppServices.discoveryService.responderOnline;
 
+    _loadConnectedPeerOnly();
+
     onlineSub = AppServices.discoveryService.isResponderOnline.listen((value) {
       if (!mounted) return;
       _setOnlineStatus(value);
@@ -47,12 +49,29 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
       setState(() {
         connectedPeer = peer;
 
-        if (peer != null &&
-            !devices.any((device) => device.deviceId == peer.deviceId)) {
-          devices.add(peer);
+        if (peer != null) {
+          devices = [peer];
+          selectedDevice = peer;
+        } else {
+          devices = [];
+          selectedDevice = null;
         }
       });
     });
+  }
+
+  void _loadConnectedPeerOnly() {
+    final peer = AppServices.networkService.connectedPeer;
+
+    connectedPeer = peer;
+
+    if (peer != null) {
+      devices = [peer];
+      selectedDevice = peer;
+    } else {
+      devices = [];
+      selectedDevice = null;
+    }
   }
 
   Future<void> scanDevices() async {
