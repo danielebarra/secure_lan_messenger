@@ -94,8 +94,7 @@ class NetworkService {
 
                 case 'SESSION_REJECT':
                   print('Sessione rifiutata');
-                  socket.destroy();
-                  _clearConnection();
+                  _clearConnection(destroySocket: true);
                   break;
 
                 case 'SESSION_KEY':
@@ -115,7 +114,7 @@ class NetworkService {
                   break;
 
                 case 'DISCONNECT':
-                  _clearConnection();
+                  _clearConnection(destroySocket: true);
                   break;
 
                 case 'ERROR':
@@ -129,12 +128,12 @@ class NetworkService {
               }
             } catch (e) {
               print('Messaggio TCP non valido: $e');
-              _clearConnection();
+              _clearConnection(destroySocket: true);
             }
           },
           onError: (e) {
             print('Errore socket: $e');
-            _clearConnection();
+            _clearConnection(destroySocket: true);
           },
           onDone: () {
             print('Socket chiusa');
@@ -287,14 +286,19 @@ class NetworkService {
   void disconnectPeer() {
     final socket = _activeSocket;
 
-    if (socket != null) {
-      final packet = ProtocolPacket.disconnect();
-
-      socket.write(packet.encode());
-      socket.destroy();
+    if (socket == null) {
+      _clearConnection();
+      return;
     }
 
-    _clearConnection();
+    try {
+      final packet = ProtocolPacket.disconnect();
+      socket.write(packet.encode());
+    } catch (e) {
+      print('Errore invio DISCONNECT: $e');
+    }
+
+    _clearConnection(destroySocket: true);
   }
 
   Future<void> sendTextMessage(String text) async {
@@ -317,10 +321,16 @@ class NetworkService {
     socket.write(packet.encode());
   }
 
-  void _clearConnection() {
-    _activeSocket?.destroy();
+  void _clearConnection({bool destroySocket = false}) {
+    final socket = _activeSocket;
+
     _activeSocket = null;
     _setConnectedPeer(null);
+    cryptoService.clearSessionKey();
+
+    if (destroySocket) {
+      socket?.destroy();
+    }
   }
 
   void dispose() {
