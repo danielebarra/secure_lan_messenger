@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:secure_lan_messenger/models/chat_message.dart';
+import 'package:secure_lan_messenger/models/peer_device.dart';
 import 'package:secure_lan_messenger/services/network_service.dart';
 
 class ChatService extends ChangeNotifier {
@@ -9,6 +10,7 @@ class ChatService extends ChangeNotifier {
 
   final List<ChatMessage> _messages = [];
   StreamSubscription<String>? _messageSubscription;
+  StreamSubscription<PeerDevice?>? _connectedPeerSubscription;
 
   ChatService({required this.networkService});
 
@@ -22,6 +24,19 @@ class ChatService extends ChangeNotifier {
 
       notifyListeners();
     });
+
+    _connectedPeerSubscription = networkService.connectedPeerStream.listen((
+      peer,
+    ) {
+      if (peer == null) {
+        clearMessages();
+      }
+    });
+  }
+
+  void clearMessages() {
+    _messages.clear();
+    notifyListeners();
   }
 
   Future<void> sendMessage(String text) async {
@@ -36,6 +51,7 @@ class ChatService extends ChangeNotifier {
   @override
   void dispose() {
     _messageSubscription?.cancel();
+    _connectedPeerSubscription?.cancel();
     super.dispose();
   }
 }
