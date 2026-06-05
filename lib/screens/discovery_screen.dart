@@ -24,13 +24,16 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
   StreamSubscription<PeerDevice?>? connectedPeerSub;
   PeerDevice? connectedPeer;
 
+  StreamSubscription<bool>? onlineSub;
+
   @override
   void initState() {
     super.initState();
 
     isOnline = AppServices.discoveryService.responderOnline;
 
-    AppServices.discoveryService.isResponderOnline.listen((value) {
+    onlineSub = AppServices.discoveryService.isResponderOnline.listen((value) {
+      if (!mounted) return;
       _setOnlineStatus(value);
     });
 
@@ -39,6 +42,8 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
     connectedPeerSub = AppServices.networkService.connectedPeerStream.listen((
       peer,
     ) {
+      if (!mounted) return;
+
       setState(() {
         connectedPeer = peer;
 
@@ -115,6 +120,8 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
 
   void disconnect() {
     AppServices.networkService.disconnectPeer();
+
+    if (!mounted) return;
 
     setState(() {
       connectedPeer = null;
@@ -231,6 +238,8 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
   }
 
   void _setOnlineStatus(bool value) {
+    if (!mounted) return;
+
     setState(() {
       if (isOnline == value) return;
 
@@ -374,6 +383,13 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
         ],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    onlineSub?.cancel();
+    connectedPeerSub?.cancel();
+    super.dispose();
   }
 }
 
