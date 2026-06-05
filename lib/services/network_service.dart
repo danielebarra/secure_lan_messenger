@@ -65,12 +65,14 @@ class NetworkService {
     print('Sessione autorizzata: $sessionId per $remoteDeviceId');
   }
 
-  void _handleIncomingConnection(Socket socket, {PeerDevice? peer}) {
+  void _handleIncomingConnection(
+    Socket socket, {
+    PeerDevice? peer,
+    Completer<bool>? connectionCompleter,
+  }) {
     print(
       'Connessione TCP ricevuta da ${socket.remoteAddress.address}:${socket.remotePort}',
     );
-
-    _activeSocket = socket;
 
     socket
         .cast<List<int>>()
@@ -89,11 +91,22 @@ class NetworkService {
                 case 'SESSION_OK':
                   await _handleSessionOk(socket, packet, peer: peer);
 
+                  if (connectionCompleter != null &&
+                      !connectionCompleter.isCompleted) {
+                    connectionCompleter.complete(true);
+                  }
+
                   print('SESSION_OK ricevuto');
                   break;
 
                 case 'SESSION_REJECT':
                   print('Sessione rifiutata');
+
+                  if (connectionCompleter != null &&
+                      !connectionCompleter.isCompleted) {
+                    connectionCompleter.complete(false);
+                  }
+
                   _clearConnection(destroySocket: true);
                   break;
 
@@ -110,7 +123,7 @@ class NetworkService {
                   break;
 
                 case 'ENCRYPTED_CHAT_MESSAGE':
-                  _handleEncryptedChatMessage(packet);
+                  await _handleEncryptedChatMessage(packet);
                   break;
 
                 case 'DISCONNECT':
@@ -128,15 +141,33 @@ class NetworkService {
               }
             } catch (e) {
               print('Messaggio TCP non valido: $e');
+
+              if (connectionCompleter != null &&
+                  !connectionCompleter.isCompleted) {
+                connectionCompleter.complete(false);
+              }
+
               _clearConnection(destroySocket: true);
             }
           },
           onError: (e) {
             print('Errore socket: $e');
+
+            if (connectionCompleter != null &&
+                !connectionCompleter.isCompleted) {
+              connectionCompleter.complete(false);
+            }
+
             _clearConnection(destroySocket: true);
           },
           onDone: () {
             print('Socket chiusa');
+
+            if (connectionCompleter != null &&
+                !connectionCompleter.isCompleted) {
+              connectionCompleter.complete(false);
+            }
+
             _clearConnection();
           },
         );
@@ -263,7 +294,13 @@ class NetworkService {
         timeout: const Duration(seconds: 4),
       );
 
-      _handleIncomingConnection(socket, peer: peer);
+      final connectionCompleter = Completer<bool>();
+
+      _handleIncomingConnection(
+        socket,
+        peer: peer,
+        connectionCompleter: connectionCompleter,
+      );
 
       final request = ProtocolPacket.sessionHello(
         sessionId: sessionId,
@@ -276,7 +313,13 @@ class NetworkService {
 
       socket.write(request.encode());
 
-      return true;
+      return await connectionCompleter.future.timeout(
+        const Duration(seconds: 6),
+        onTimeout: () {
+          _clearConnection(destroySocket: true);
+          return false;
+        },
+      );
     } catch (e) {
       print('Errore connessione TCP: $e');
       return false;
