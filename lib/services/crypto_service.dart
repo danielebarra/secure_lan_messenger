@@ -113,7 +113,7 @@ class CryptoService {
   List<int> rsaDecryptSessionKey(String encryptedSessionKey) {
     final cipher = pc.OAEPEncoding(pc.RSAEngine());
 
-    cipher.init(false, pc.PrivateKeyParameter<pc.PrivateKey>(privateKey));
+    cipher.init(false, pc.PrivateKeyParameter<pc.RSAPrivateKey>(privateKey));
 
     final encryptedBytes = base64Decode(encryptedSessionKey);
     final decrypted = cipher.process(Uint8List.fromList(encryptedBytes));
