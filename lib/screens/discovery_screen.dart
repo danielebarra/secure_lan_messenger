@@ -334,7 +334,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                 ),
               ),
 
-              const SizedBox(width: 20),
+              const SizedBox(width: 135),
 
               const SizedBox(
                 width: 340,
@@ -358,7 +358,8 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                   title: isScanning
                       ? 'Scansione in corso'
                       : 'Ultima scansione completata',
-                  subtitle: 'Subnet: 192.168.1.0/24',
+                  subtitle:
+                      "Fingerprint: ${AppServices.cryptoService.publicKeyFingerprint}",
                   icon: Icons.wifi_tethering,
                 ),
               ),
